@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Reality Photo V6</title>
+<title>Reality Photo V7</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;overflow:hidden}
@@ -32,14 +32,17 @@ canvas{display:block;max-width:100vw;max-height:100vh;touch-action:none}
  <canvas id="c"></canvas><div id="tip"></div>
  <button id="ready" class="btn">進入表演模式</button>
 </section>
-<section id="show" class="screen"><canvas id="s"></canvas></section>
+<section id="show" class="screen"><canvas id="s"></canvas>
+    <button id="savePhoto" class="btn" style="display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translateX(-50%);z-index:30">儲存變化後照片</button>
+    <a id="downloadPhoto" style="display:none"></a>
+    </section>
 <div id="secret"></div><div id="exit"></div>
 
 <script>
 const $=x=>document.querySelector(x);
 const setup=$('#setup'),work=$('#work'),show=$('#show'),pick=$('#pick'),c=$('#c'),s=$('#s');
 const ctx=c.getContext('2d',{willReadFrequently:true}), sx=s.getContext('2d',{willReadFrequently:true});
-const tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit');
+const tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit'),savePhoto=$('#savePhoto'),downloadPhoto=$('#downloadPhoto');
 let img=new Image(),start,box,target,selecting=false,armed=false,changed=false,baseImage=null;
 
 function fitCanvas(canvas,iw,ih){
@@ -133,7 +136,27 @@ function magic(){
  const patch=featheredPatch(c,box.x,box.y,box.w,box.h,Math.min(box.w,box.h)*.15);
  healOriginal();
  sx.drawImage(patch,target.x-box.w/2,target.y-box.h/2);
+ savePhoto.style.display='block';
 }
+
+
+function exportFinalPhoto(){
+ // JPEG is friendlier to the iPhone Photos workflow than a raw canvas.
+ s.toBlob(blob=>{
+   if(!blob)return;
+   const url=URL.createObjectURL(blob);
+   // On iPhone Safari this opens the finished image. The user can then
+   // use Share -> Save Image to place it in Photos.
+   const w=window.open(url,'_blank');
+   if(!w){
+     downloadPhoto.href=url;
+     downloadPhoto.download='Reality-Photo.jpg';
+     downloadPhoto.click();
+   }
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+ },'image/jpeg',0.95);
+}
+savePhoto.addEventListener('click',exportFinalPhoto);
 
 let taps=0,timer=null,lastTouch=0;
 function secretTap(e){
