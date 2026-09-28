@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Reality Photo</title>
+<title>Reality Photo V5</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;overflow:hidden}
@@ -35,12 +35,15 @@ canvas{display:block;max-width:100vw;max-height:100vh;touch-action:none}
 </section>
 
 <section id="show" class="screen"><canvas id="s"></canvas></section>
+<div id="diag" style="position:fixed;right:16px;top:calc(env(safe-area-inset-top) + 16px);z-index:50;
+background:rgba(255,255,255,.92);color:#000;padding:8px 11px;border-radius:10px;
+font:700 14px -apple-system;display:none;pointer-events:none">V5 READY</div>
 <div id="secret"></div><div id="exit"></div>
 
 <script>
 const $=x=>document.querySelector(x);
 const setup=$('#setup'),work=$('#work'),show=$('#show'),pick=$('#pick'),c=$('#c'),s=$('#s');
-const ctx=c.getContext('2d'),sx=s.getContext('2d'),tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit');
+const ctx=c.getContext('2d'),sx=s.getContext('2d'),tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit'),diag=$('#diag');
 let img=new Image(), start, box, target, selecting=false, armed=false, changed=false, original;
 
 function fitCanvas(canvas, iw, ih){
@@ -84,7 +87,7 @@ c.addEventListener('touchend',e=>{
 ready.onclick=()=>{
  fitCanvas(s,c.width,c.height); s.width=c.width;s.height=c.height;
  sx.drawImage(c,0,0);
- work.style.display='none';show.style.display='flex';secret.style.display='block';exit.style.display='block';
+ work.style.display='none';show.style.display='flex';secret.style.display='block';exit.style.display='block';diag.style.display='block';diag.textContent='V5 READY';
 };
 
 function magic(){
@@ -97,18 +100,33 @@ function magic(){
  sx.drawImage(c,donor,box.y,box.w,box.h,box.x,box.y,box.w,box.h);
  sx.drawImage(patch,target.x-box.w/2,target.y-box.h/2);
 }
-let secretTaps=0, secretTapTimer=null;
-secret.addEventListener('pointerdown',(e)=>{
- e.preventDefault();
+let secretTaps=0, secretTapTimer=null, lastTouch=0;
+function secretTap(e){
+ if(e && e.cancelable) e.preventDefault();
+ const now=Date.now();
+ // Ignore synthetic click immediately following a touch.
+ if(e && e.type==='click' && now-lastTouch<500) return;
+ if(e && e.type==='touchend') lastTouch=now;
  secretTaps++;
+ diag.style.display='block';
+ diag.textContent='秘密點擊 '+secretTaps+'/3';
  clearTimeout(secretTapTimer);
  if(secretTaps>=3){
    secretTaps=0;
-   magic();
- } else {
-   secretTapTimer=setTimeout(()=>secretTaps=0,900);
+   diag.textContent='TRIGGERED ✓';
+   // Obvious visual pulse proves the trigger fired.
+   s.animate([{transform:'scale(1)'},{transform:'scale(.92)'},{transform:'scale(1)'}],
+             {duration:420,easing:'ease-out'});
+   setTimeout(magic,180);
+ }else{
+   secretTapTimer=setTimeout(()=>{
+     secretTaps=0;
+     diag.textContent='V5 READY';
+   },1200);
  }
-});
+}
+secret.addEventListener('touchend',secretTap,{passive:false});
+secret.addEventListener('click',secretTap);
 
 let exitHold;
 exit.addEventListener('touchstart',()=>exitHold=setTimeout(()=>location.reload(),1400),{passive:true});
