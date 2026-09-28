@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Reality Photo V8</title>
+<title>Reality Vanish V9</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;overflow:hidden}
@@ -21,185 +21,97 @@ canvas{display:block;max-width:100vw;max-height:100vh;touch-action:none}
 #savePhoto{display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translateX(-50%);z-index:30}
 #secret{position:fixed;right:0;bottom:0;width:34vw;height:34vh;z-index:20;display:none;touch-action:none}
 #exit{position:fixed;left:0;top:0;width:18vw;height:18vh;z-index:21;display:none}
-</style>
-</head>
+</style></head>
 <body>
 <section id="setup" class="screen">
- <h1>Reality Photo</h1>
- <div class="desc">V8：框選時請盡量貼近物件邊緣。這版會自動建立物件遮罩，再修復原位置。</div>
+ <h1>Reality Vanish</h1>
+ <div class="desc">V9 消失版：框住要消失的東西。框外請留一圈可用的背景。</div>
  <label class="btn">選擇照片<input id="pick" type="file" accept="image/*"></label>
 </section>
-<section id="work" class="screen">
- <canvas id="c"></canvas><div id="tip"></div>
- <button id="ready" class="btn">進入表演模式</button>
-</section>
-<section id="show" class="screen"><canvas id="s"></canvas>
- <button id="savePhoto" class="btn">儲存變化後照片</button>
- <a id="downloadPhoto" style="display:none"></a>
-</section>
+<section id="work" class="screen"><canvas id="c"></canvas><div id="tip"></div><button id="ready" class="btn">進入表演模式</button></section>
+<section id="show" class="screen"><canvas id="s"></canvas><button id="savePhoto" class="btn">儲存變化後照片</button><a id="dl" style="display:none"></a></section>
 <div id="secret"></div><div id="exit"></div>
-
 <script>
-const $=x=>document.querySelector(x);
+const $=q=>document.querySelector(q);
 const setup=$('#setup'),work=$('#work'),show=$('#show'),pick=$('#pick'),c=$('#c'),s=$('#s');
-const ctx=c.getContext('2d',{willReadFrequently:true}), sx=s.getContext('2d',{willReadFrequently:true});
-const tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit'),savePhoto=$('#savePhoto'),downloadPhoto=$('#downloadPhoto');
-let img=new Image(),start,box,target,selecting=false,armed=false,changed=false,baseImage=null;
+const cx=c.getContext('2d',{willReadFrequently:true}),sx=s.getContext('2d',{willReadFrequently:true});
+const tip=$('#tip'),ready=$('#ready'),secret=$('#secret'),exit=$('#exit'),savePhoto=$('#savePhoto'),dl=$('#dl');
+let img=new Image(),start=null,box=null,selecting=false,base=null,changed=false;
 
-function fitCanvas(canvas,iw,ih){const max=1800,k=Math.min(1,max/iw,max/ih);canvas.width=Math.round(iw*k);canvas.height=Math.round(ih*k)}
-function drawBase(){ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height)}
-function pt(canvas,t){const r=canvas.getBoundingClientRect();return{x:(t.clientX-r.left)*canvas.width/r.width,y:(t.clientY-r.top)*canvas.height/r.height}}
+function fit(iw,ih){let k=Math.min(1,1800/iw,1800/ih);c.width=Math.round(iw*k);c.height=Math.round(ih*k)}
+function draw(){cx.clearRect(0,0,c.width,c.height);cx.drawImage(img,0,0,c.width,c.height)}
+function pos(t){let r=c.getBoundingClientRect();return{x:(t.clientX-r.left)*c.width/r.width,y:(t.clientY-r.top)*c.height/r.height}}
 
-pick.onchange=()=>{
- const f=pick.files?.[0];if(!f)return;const u=URL.createObjectURL(f);
- img.onload=()=>{fitCanvas(c,img.naturalWidth,img.naturalHeight);drawBase();setup.style.display='none';work.style.display='flex';tip.textContent='① 緊貼物件邊緣框選';URL.revokeObjectURL(u)};
- img.src=u;
-};
-c.addEventListener('touchstart',e=>{
- if(armed)return;e.preventDefault();
- if(!box){selecting=true;start=pt(c,e.touches[0]);}
- else{target=pt(c,e.touches[0]);armed=true;baseImage=ctx.getImageData(0,0,c.width,c.height);tip.textContent='設定完成';ready.style.display='block';}
-},{passive:false});
-c.addEventListener('touchmove',e=>{
- if(!selecting||armed)return;e.preventDefault();drawBase();const p=pt(c,e.touches[0]);
- const x=Math.min(start.x,p.x),y=Math.min(start.y,p.y),w=Math.abs(start.x-p.x),h=Math.abs(start.y-p.y);
- ctx.save();ctx.strokeStyle='white';ctx.lineWidth=Math.max(3,c.width/400);ctx.setLineDash([12,9]);ctx.strokeRect(x,y,w,h);ctx.restore();
-},{passive:false});
-c.addEventListener('touchend',e=>{
- if(!selecting||armed)return;e.preventDefault();const p=pt(c,e.changedTouches[0]);
- box={x:Math.round(Math.min(start.x,p.x)),y:Math.round(Math.min(start.y,p.y)),w:Math.max(12,Math.round(Math.abs(start.x-p.x))),h:Math.max(12,Math.round(Math.abs(start.y-p.y)))};
- selecting=false;drawBase();tip.textContent='② 點一下新的位置';
-},{passive:false});
+pick.onchange=()=>{let f=pick.files?.[0];if(!f)return;let u=URL.createObjectURL(f);img.onload=()=>{fit(img.naturalWidth,img.naturalHeight);draw();setup.style.display='none';work.style.display='flex';tip.textContent='框住要消失的物品';URL.revokeObjectURL(u)};img.src=u};
 
-ready.onclick=()=>{
- s.width=c.width;s.height=c.height;sx.putImageData(baseImage,0,0);
- work.style.display='none';show.style.display='flex';secret.style.display='block';exit.style.display='block';
-};
+c.addEventListener('touchstart',e=>{e.preventDefault();if(box)return;selecting=true;start=pos(e.touches[0])},{passive:false});
+c.addEventListener('touchmove',e=>{if(!selecting)return;e.preventDefault();draw();let p=pos(e.touches[0]),x=Math.min(start.x,p.x),y=Math.min(start.y,p.y),w=Math.abs(start.x-p.x),h=Math.abs(start.y-p.y);cx.save();cx.strokeStyle='#fff';cx.lineWidth=Math.max(3,c.width/400);cx.setLineDash([12,9]);cx.strokeRect(x,y,w,h);cx.restore()},{passive:false});
+c.addEventListener('touchend',e=>{if(!selecting)return;e.preventDefault();let p=pos(e.changedTouches[0]);box={x:Math.round(Math.min(start.x,p.x)),y:Math.round(Math.min(start.y,p.y)),w:Math.max(20,Math.round(Math.abs(start.x-p.x))),h:Math.max(20,Math.round(Math.abs(start.y-p.y)))};selecting=false;draw();base=cx.getImageData(0,0,c.width,c.height);tip.textContent='設定完成';ready.style.display='block'},{passive:false});
 
-/* Build a soft foreground mask from the box:
-   border pixels are treated as background; pixels that differ strongly from that border
-   become foreground. A center prior prevents rectangular edges from surviving. */
-function buildObjectPatch(){
- const w=box.w,h=box.h;
- const src=ctx.getImageData(box.x,box.y,w,h);
- const d=src.data;
- let br=0,bg=0,bb=0,n=0;
- const band=Math.max(2,Math.round(Math.min(w,h)*0.09));
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-   if(x<band||y<band||x>=w-band||y>=h-band){
-     const i=(y*w+x)*4;br+=d[i];bg+=d[i+1];bb+=d[i+2];n++;
-   }
+ready.onclick=()=>{s.width=c.width;s.height=c.height;sx.putImageData(base,0,0);work.style.display='none';show.style.display='flex';secret.style.display='block';exit.style.display='block'};
+
+/* V9: fill the selected hole from four surrounding background strips.
+   Every interior pixel receives a distance-weighted estimate from left/right/top/bottom.
+   A second smoothing pass removes the four-way seam, then a feathered mask composites
+   only the selected region back over the untouched original. */
+function vanish(){
+ if(changed||!box)return;changed=true;
+ const W=s.width,H=s.height,x0=box.x,y0=box.y,w=box.w,h=box.h;
+ const src=new Uint8ClampedArray(base.data);
+ const out=new Uint8ClampedArray(base.data);
+ const sample=Math.max(3,Math.round(Math.min(w,h)*0.08));
+ function pix(x,y,ch){
+   x=Math.max(0,Math.min(W-1,Math.round(x)));y=Math.max(0,Math.min(H-1,Math.round(y)));
+   return src[(y*W+x)*4+ch];
  }
- br/=n;bg/=n;bb/=n;
- let sum=0,sum2=0;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-   if(x<band||y<band||x>=w-band||y>=h-band){
-     const i=(y*w+x)*4;
-     const dist=Math.hypot(d[i]-br,d[i+1]-bg,d[i+2]-bb);
-     sum+=dist;sum2+=dist*dist;
-   }
- }
- const mean=sum/n,sd=Math.sqrt(Math.max(1,sum2/n-mean*mean));
- const low=mean+sd*1.6, high=low+Math.max(18,sd*1.4);
-
- const mask=document.createElement('canvas');mask.width=w;mask.height=h;
- const mc=mask.getContext('2d');const mi=mc.createImageData(w,h);const md=mi.data;
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-   const i=(y*w+x)*4;
-   const dist=Math.hypot(d[i]-br,d[i+1]-bg,d[i+2]-bb);
-   let a=(dist-low)/(high-low);a=Math.max(0,Math.min(1,a));
-   // Smoothstep
-   a=a*a*(3-2*a);
-   // Soft center prior: kills box corners and border remnants.
-   const nx=(x+0.5-w/2)/(w/2),ny=(y+0.5-h/2)/(h/2),r=Math.sqrt(nx*nx+ny*ny);
-   let center=Math.max(0,Math.min(1,(1.03-r)/0.18));
-   center=center*center*(3-2*center);
-   a*=center;
-   md[i]=md[i+1]=md[i+2]=255;md[i+3]=Math.round(a*255);
- }
- mc.putImageData(mi,0,0);
-
- // Blur only the mask edge.
- const soft=document.createElement('canvas');soft.width=w;soft.height=h;
- const sc=soft.getContext('2d');
- sc.filter=`blur(${Math.max(1,Math.round(Math.min(w,h)*0.012))}px)`;
- sc.drawImage(mask,0,0);sc.filter='none';
-
- const out=document.createElement('canvas');out.width=w;out.height=h;
- const oc=out.getContext('2d');
- oc.drawImage(c,box.x,box.y,w,h,0,0,w,h);
- oc.globalCompositeOperation='destination-in';oc.drawImage(soft,0,0);oc.globalCompositeOperation='source-over';
- return {patch:out,mask:soft};
-}
-
-/* Iterative neighbor-fill inpainting.
-   Instead of pasting another rectangle, each masked pixel is reconstructed from
-   nearby known pixels, working from the edge toward the center. */
-function inpaint(maskCanvas){
- const W=c.width,H=c.height;
- const out=new ImageData(new Uint8ClampedArray(baseImage.data),W,H);
- const od=out.data;
- const mw=box.w,mh=box.h;
- const md=maskCanvas.getContext('2d').getImageData(0,0,mw,mh).data;
- const hole=new Uint8Array(mw*mh);
- for(let i=0;i<mw*mh;i++) hole[i]=md[i*4+3]>35?1:0;
-
- let remaining=hole.reduce((a,b)=>a+b,0),passes=0;
- const dirs=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1],[-2,0],[2,0],[0,-2],[0,2]];
- while(remaining>0 && passes<Math.max(mw,mh)){
-   const fills=[];
-   for(let y=0;y<mh;y++)for(let x=0;x<mw;x++){
-     const li=y*mw+x;if(!hole[li])continue;
-     let rr=0,gg=0,bb=0,aa=0,cnt=0;
-     for(const [dx,dy] of dirs){
-       const nx=x+dx,ny=y+dy;
-       if(nx<0||ny<0||nx>=mw||ny>=mh)continue;
-       if(hole[ny*mw+nx])continue;
-       const gi=((box.y+ny)*W+(box.x+nx))*4;
-       rr+=od[gi];gg+=od[gi+1];bb+=od[gi+2];aa+=od[gi+3];cnt++;
+ for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+   let gx=x0+xx,gy=y0+yy;
+   let u=(xx+.5)/w,v=(yy+.5)/h;
+   let dlx=xx+1,drx=w-xx,dty=yy+1,dby=h-yy;
+   let wl=1/(dlx*dlx),wr=1/(drx*drx),wt=1/(dty*dty),wb=1/(dby*dby);
+   let sum=wl+wr+wt+wb;
+   let i=(gy*W+gx)*4;
+   for(let ch=0;ch<3;ch++){
+     let L=0,R=0,T=0,B=0;
+     for(let q=1;q<=sample;q++){
+       L+=pix(x0-q,gy,ch); R+=pix(x0+w-1+q,gy,ch);
+       T+=pix(gx,y0-q,ch); B+=pix(gx,y0+h-1+q,ch);
      }
-     if(cnt>=2) fills.push([x,y,rr/cnt,gg/cnt,bb/cnt,aa/cnt]);
+     L/=sample;R/=sample;T/=sample;B/=sample;
+     out[i+ch]=(L*wl+R*wr+T*wt+B*wb)/sum;
    }
-   if(!fills.length)break;
-   for(const [x,y,r,g,b,a] of fills){
-     const gi=((box.y+y)*W+(box.x+x))*4;
-     od[gi]=r;od[gi+1]=g;od[gi+2]=b;od[gi+3]=a;
-     hole[y*mw+x]=0;remaining--;
-   }
-   passes++;
+   out[i+3]=255;
  }
- return out;
-}
-
-function magic(){
- if(!armed||changed)return;changed=true;
- const obj=buildObjectPatch();
- const healed=inpaint(obj.mask);
- sx.putImageData(healed,0,0);
- sx.drawImage(obj.patch,target.x-box.w/2,target.y-box.h/2);
+ // Gentle local smoothing only inside the reconstructed area.
+ let tmp=new Uint8ClampedArray(out);
+ let rad=Math.max(2,Math.min(7,Math.round(Math.min(w,h)*0.018)));
+ for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+   let gx=x0+xx,gy=y0+yy,i=(gy*W+gx)*4;
+   for(let ch=0;ch<3;ch++){
+     let total=0,ws=0;
+     for(let dy=-rad;dy<=rad;dy+=rad)for(let dx=-rad;dx<=rad;dx+=rad){
+       let nx=Math.max(x0,Math.min(x0+w-1,gx+dx)),ny=Math.max(y0,Math.min(y0+h-1,gy+dy));
+       let weight=(dx===0&&dy===0)?4:1;total+=tmp[(ny*W+nx)*4+ch]*weight;ws+=weight;
+     }
+     out[i+ch]=total/ws;
+   }
+ }
+ // Feather edge into untouched original so no rectangular boundary is visible.
+ const feather=Math.max(8,Math.round(Math.min(w,h)*0.12));
+ for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+   let gx=x0+xx,gy=y0+yy,i=(gy*W+gx)*4;
+   let edge=Math.min(xx+1,w-xx,yy+1,h-yy);
+   let a=Math.max(0,Math.min(1,edge/feather));a=a*a*(3-2*a);
+   for(let ch=0;ch<3;ch++)out[i+ch]=src[i+ch]*(1-a)+out[i+ch]*a;
+ }
+ sx.putImageData(new ImageData(out,W,H),0,0);
  savePhoto.style.display='block';
 }
 
-function exportFinalPhoto(){
- s.toBlob(blob=>{
-   if(!blob)return;const url=URL.createObjectURL(blob);const w=window.open(url,'_blank');
-   if(!w){downloadPhoto.href=url;downloadPhoto.download='Reality-Photo.jpg';downloadPhoto.click();}
-   setTimeout(()=>URL.revokeObjectURL(url),60000);
- },'image/jpeg',0.96);
-}
-savePhoto.addEventListener('click',exportFinalPhoto);
+savePhoto.onclick=()=>s.toBlob(b=>{if(!b)return;let u=URL.createObjectURL(b),w=window.open(u,'_blank');if(!w){dl.href=u;dl.download='Reality-Vanish.jpg';dl.click()}setTimeout(()=>URL.revokeObjectURL(u),60000)},'image/jpeg',.96);
 
-let taps=0,timer=null,lastTouch=0;
-function secretTap(e){
- if(e&&e.cancelable)e.preventDefault();const now=Date.now();
- if(e&&e.type==='click'&&now-lastTouch<500)return;if(e&&e.type==='touchend')lastTouch=now;
- taps++;clearTimeout(timer);if(taps>=3){taps=0;magic();}else timer=setTimeout(()=>taps=0,1100);
-}
-secret.addEventListener('touchend',secretTap,{passive:false});secret.addEventListener('click',secretTap);
-
-let exitHold;
-exit.addEventListener('touchstart',()=>exitHold=setTimeout(()=>location.reload(),1400),{passive:true});
-exit.addEventListener('touchend',()=>clearTimeout(exitHold),{passive:true});
-exit.addEventListener('touchcancel',()=>clearTimeout(exitHold),{passive:true});
-</script>
-</body></html>
+let taps=0,timer,lastTouch=0;
+function tap(e){if(e?.cancelable)e.preventDefault();let now=Date.now();if(e?.type==='click'&&now-lastTouch<500)return;if(e?.type==='touchend')lastTouch=now;taps++;clearTimeout(timer);if(taps>=3){taps=0;vanish()}else timer=setTimeout(()=>taps=0,1100)}
+secret.addEventListener('touchend',tap,{passive:false});secret.addEventListener('click',tap);
+let hold;exit.addEventListener('touchstart',()=>hold=setTimeout(()=>location.reload(),1400));exit.addEventListener('touchend',()=>clearTimeout(hold));exit.addEventListener('touchcancel',()=>clearTimeout(hold));
+</script></body></html>
